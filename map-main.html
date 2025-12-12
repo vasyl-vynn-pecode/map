@@ -173,9 +173,26 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
 }
 .leaflet-popup-close-button:hover { color: var(--color-text) !important; }
 
-.popup-content { padding: 20px; }
-.popup-name { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--color-text); }
-.popup-info { font-size: 13px; color: var(--color-text-light); margin-bottom: 6px; }
+.popup-content { padding: 0; overflow: hidden; }
+.popup-content.has-image { min-width: 280px; }
+.popup-content:not(.has-image) .popup-body { padding: 20px; }
+
+.popup-image {
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+  background: var(--color-bg);
+  position: relative;
+}
+.popup-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.popup-body { padding: 16px 20px 20px; }
+.popup-name { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: var(--color-text); line-height: 1.3; }
+.popup-info { font-size: 13px; color: var(--color-text-light); margin-bottom: 5px; }
 .popup-info span { color: var(--color-text); font-weight: 500; }
 .popup-tag {
   display: inline-block; margin-top: 8px; padding: 4px 10px;
@@ -526,13 +543,13 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   // ============================================
   const markerIcon = L.divIcon({
     className: 'custom-marker',
-    html: `<svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24c0-8.84-7.16-16-16-16z" fill="#F5A623"/>
+    html: `<svg width="38" height="46" viewBox="-3 -3 38 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24c0-8.84-7.16-16-16-16z" fill="#F5A623" stroke="white" stroke-width="3"/>
       <circle cx="16" cy="16" r="6" fill="white"/>
     </svg>`,
-    iconSize: [32, 40],
-    iconAnchor: [16, 40],
-    popupAnchor: [0, -36]
+    iconSize: [38, 46],
+    iconAnchor: [19, 43],
+    popupAnchor: [0, -39]
   });
 
   // ============================================
@@ -565,7 +582,20 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   }
 
   function initMap() {
-    map = L.map('map', { zoomControl: true }).setView(CONFIG.MAP_CENTER, CONFIG.MAP_ZOOM);
+    map = L.map('map', { 
+      zoomControl: true,
+      scrollWheelZoom: false  // Disable scroll zoom - users can use +/- buttons or double-click
+    }).setView(CONFIG.MAP_CENTER, CONFIG.MAP_ZOOM);
+    
+    // Enable scroll zoom only when user clicks on map (optional UX improvement)
+    map.on('click', function() {
+      map.scrollWheelZoom.enable();
+    });
+    
+    // Disable scroll zoom when mouse leaves map
+    map.on('mouseout', function() {
+      map.scrollWheelZoom.disable();
+    });
     L.tileLayer(CONFIG.TILE_URL, {
       attribution: CONFIG.TILE_ATTRIBUTION,
       className: 'darker-tiles',
@@ -790,19 +820,30 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   }
 
   function createPopupHTML(p) {
+    // Get first image if available
+    const hasImage = p.images && p.images.length > 0;
+    const firstImage = hasImage ? p.images[0] : null;
+    
     return `
-      <div class="popup-content">
-        <div class="popup-name">${escapeHtml(p.name)}</div>
-        <div class="popup-info">Owner: <span>${escapeHtml(p.owner) || 'N/A'}</span></div>
-        <div class="popup-info">Capacity (DC): <span>${p.capacity.toLocaleString()} kW</span></div>
-        <div class="popup-info">Completed: <span>${p.year}</span></div>
-        ${p.clientType ? `<div class="popup-tag">${escapeHtml(p.clientType)}</div>` : ''}
-        <button class="popup-details-btn">
-          Project details
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </button>
+      <div class="popup-content ${hasImage ? 'has-image' : ''}">
+        ${hasImage ? `
+          <div class="popup-image">
+            <img src="${firstImage.thumbnail || firstImage.url}" alt="${escapeHtml(p.name)}" loading="lazy">
+          </div>
+        ` : ''}
+        <div class="popup-body">
+          <div class="popup-name">${escapeHtml(p.address || p.name)}</div>
+          <div class="popup-info">Owner: <span>${escapeHtml(p.owner) || 'N/A'}</span></div>
+          <div class="popup-info">Capacity (DC): <span>${p.capacity.toLocaleString()} kW</span></div>
+          <div class="popup-info">Completed: <span>${p.year}</span></div>
+          ${p.clientType ? `<div class="popup-tag">${escapeHtml(p.clientType)}</div>` : ''}
+          <button class="popup-details-btn">
+            Project details
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
       </div>
     `;
   }
