@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Solar Projects Map</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+/* ============================================
+   CSS VARIABLES
+   ============================================ */
+:root {
+  --color-primary: #F5A623;
+  --color-primary-hover: #E09000;
+  --color-text: #333;
+  --color-text-light: #666;
+  --color-text-muted: #999;
+  --color-border: #E5E5E5;
+  --color-bg: #FAFAFA;
+  --color-white: #FFFFFF;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: var(--font-family); background: var(--color-bg); color: var(--color-text); }
+#map { height: 100%; width: 100%; }
+
+/* Darker map tiles for better contrast */
+.darker-tiles { filter: brightness(0.92) contrast(1.08) saturate(0.85); }
+
+/* ============================================
+   LOADING OVERLAY
+   ============================================ */
+.loading-overlay {
+  position: fixed; inset: 0; background: var(--color-white);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  z-index: 9999; transition: opacity 0.3s;
+}
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: var(--color-text-light); font-size: 14px; }
+
+/* Error state */
+.error-box {
+  text-align: center; max-width: 400px; padding: 32px;
+  background: var(--color-white); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+}
+.error-box h3 { margin-bottom: 12px; color: #D32F2F; }
+.error-box p { color: var(--color-text-light); font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+.error-box button {
+  padding: 10px 24px; background: var(--color-primary); color: var(--color-white);
+  border: none; border-radius: var(--radius-md); font-weight: 500; cursor: pointer;
+}
+
+/* ============================================
+   FILTERS BUTTON
+   ============================================ */
+.filters-btn {
+  position: absolute; top: 20px; left: 20px; z-index: 1000;
+  background: var(--color-white); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: 12px 24px;
+  font-size: 14px; font-weight: 500; color: var(--color-text);
+  cursor: pointer; box-shadow: var(--shadow-sm); transition: all 0.2s;
+}
+.filters-btn:hover { box-shadow: var(--shadow-md); }
+
+/* ============================================
+   FILTERS PANEL (LEFT SIDE)
+   ============================================ */
+.filters-panel {
+  position: fixed; top: 0; left: 0; width: 320px; height: 100%;
+  background: var(--color-white); border-right: 1px solid var(--color-border);
+  z-index: 2000; transform: translateX(-100%); transition: transform 0.3s ease;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.filters-panel.open { transform: translateX(0); }
+
+.filters-header {
+  padding: 20px 24px; border-bottom: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.filters-header h2 { font-size: 18px; font-weight: 500; }
+.filters-close {
+  background: none; border: none; font-size: 24px; color: var(--color-text-muted);
+  cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+}
+.filters-close:hover { color: var(--color-text); }
+
+.filters-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+/* Search Input */
+.search-section { margin-bottom: 24px; }
+.search-section label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--color-text); }
+.search-input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); font-size: 14px; outline: none; transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--color-primary); }
+.search-input::placeholder { color: var(--color-text-muted); }
+
+/* Filter Section */
+.filter-section { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--color-border); }
+.filter-section:last-child { border-bottom: none; }
+.filter-section label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--color-text); }
+
+/* Range Slider */
+.range-wrapper { padding: 0 4px; }
+.range-labels { display: flex; justify-content: space-between; font-size: 13px; color: var(--color-text-light); margin-bottom: 8px; }
+.range-track { position: relative; height: 4px; background: var(--color-border); border-radius: 2px; margin: 16px 0; }
+.range-fill { position: absolute; height: 100%; background: var(--color-primary); border-radius: 2px; }
+.range-wrapper input[type="range"] {
+  position: absolute; width: 100%; height: 4px; top: 0; left: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; pointer-events: none;
+}
+.range-wrapper input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--color-white); border: 2px solid var(--color-primary);
+  cursor: pointer; pointer-events: all; box-shadow: var(--shadow-sm);
+}
+
+/* Checkbox List */
+.checkbox-list { display: flex; flex-direction: column; gap: 10px; }
+.checkbox-item {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  font-size: 14px; color: var(--color-text);
+}
+.checkbox-item input[type="checkbox"] {
+  width: 18px; height: 18px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); cursor: pointer; accent-color: var(--color-primary);
+}
+
+/* Reset Button */
+.reset-btn {
+  width: 100%; padding: 12px; margin-top: 8px;
+  background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); font-size: 14px; font-weight: 500;
+  color: var(--color-text-light); cursor: pointer; transition: all 0.2s;
+}
+.reset-btn:hover { background: var(--color-border); color: var(--color-text); }
+
+/* ============================================
+   PROJECT POPUP (on marker click)
+   ============================================ */
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  padding: 0; overflow: hidden;
+}
+.leaflet-popup-content { margin: 0; width: 280px !important; }
+.leaflet-popup-close-button {
+  top: 12px !important; right: 12px !important; width: 28px !important; height: 28px !important;
+  font-size: 20px !important; color: var(--color-text-muted) !important;
+  background: var(--color-white) !important; border-radius: 50% !important;
+  display: flex !important; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+.leaflet-popup-close-button:hover { color: var(--color-text) !important; }
+
+.popup-content { padding: 20px; }
+.popup-name { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--color-text); }
+.popup-info { font-size: 13px; color: var(--color-text-light); margin-bottom: 6px; }
+.popup-info span { color: var(--color-text); font-weight: 500; }
+.popup-tag {
+  display: inline-block; margin-top: 8px; padding: 4px 10px;
+  background: var(--color-bg); border-radius: 12px;
+  font-size: 12px; color: var(--color-text-light);
+}
+.popup-details-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; margin-top: 16px; padding: 12px;
+  background: var(--color-text); color: var(--color-white);
+  border: none; border-radius: var(--radius-md);
+  font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s;
+}
+.popup-details-btn:hover { background: #444; }
+.popup-details-btn svg { width: 16px; height: 16px; }
+
+/* ============================================
+   PROJECT DETAILS MODAL
+   ============================================ */
+.details-modal {
+  position: fixed; inset: 0; z-index: 3000;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);
+}
+.details-modal.open { display: flex; }
+
+.details-content {
+  background: var(--color-white); border-radius: var(--radius-lg);
+  width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
+  box-shadow: var(--shadow-lg); position: relative;
+}
+
+.details-close {
+  position: absolute; top: 20px; right: 20px;
+  background: none; border: none; font-size: 28px; color: var(--color-text-muted);
+  cursor: pointer; width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+}
+.details-close:hover { color: var(--color-text); }
+
+.details-body { padding: 40px; }
+.details-title { font-size: 24px; font-weight: 600; margin-bottom: 32px; padding-right: 40px; }
+
+.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 40px; }
+.details-item { min-width: 0; }
+.details-label { font-size: 13px; color: var(--color-text-muted); margin-bottom: 4px; }
+.details-value { font-size: 15px; font-weight: 500; color: var(--color-text); word-break: break-word; }
+
+/* ============================================
+   IMAGE GALLERY
+   ============================================ */
+.details-gallery {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+}
+.gallery-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 16px;
+}
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+.gallery-item {
+  aspect-ratio: 4/3;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-bg);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.gallery-item:hover {
+  transform: scale(1.03);
+  box-shadow: var(--shadow-md);
+}
+.gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ============================================
+   LIGHTBOX
+   ============================================ */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.95);
+}
+.lightbox.open { display: flex; }
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 36px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+.lightbox-close:hover { opacity: 1; }
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  font-size: 48px;
+  padding: 20px 16px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 10;
+}
+.lightbox-nav:hover { opacity: 1; background: rgba(255, 255, 255, 0.2); }
+.lightbox-prev { left: 20px; border-radius: var(--radius-md); }
+.lightbox-next { right: 20px; border-radius: var(--radius-md); }
+
+.lightbox-content {
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.lightbox-content img {
+  max-width: 100%;
+  max-height: calc(85vh - 50px);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+.lightbox-info {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+#lightboxCaption {
+  max-width: 70%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================
+   CUSTOM MARKER
+   ============================================ */
+.custom-marker { background: none; border: none; }
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+  .filters-panel { width: 100%; }
+  .details-content { width: 95%; margin: 20px; }
+  .details-grid { grid-template-columns: 1fr; }
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .lightbox-nav { font-size: 32px; padding: 15px 12px; }
+  .lightbox-prev { left: 10px; }
+  .lightbox-next { right: 10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading solar projects...</div>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Filters Button -->
+<button class="filters-btn" id="filtersBtn">Filters</button>
+
+<!-- Filters Panel (Left Side) -->
+<div class="filters-panel" id="filtersPanel">
+  <div class="filters-header">
+    <h2>Filter projects</h2>
+    <button class="filters-close" id="filtersClose">×</button>
+  </div>
+  
+  <div class="filters-body">
+    <!-- Search -->
+    <div class="search-section">
+      <label>Search</label>
+      <input type="text" class="search-input" id="searchInput" placeholder="Search projects...">
+    </div>
+
+    <!-- Size (Capacity) -->
+    <div class="filter-section">
+      <label>Size (DC)</label>
+      <div class="range-wrapper">
+        <div class="range-labels">
+          <span id="capMinLabel">0 kW</span>
+          <span id="capMaxLabel">2 MW</span>
+        </div>
+        <div class="range-track">
+          <div class="range-fill" id="capFill"></div>
+          <input type="range" id="capMin" min="0" max="2000" value="0" step="10">
+          <input type="range" id="capMax" min="0" max="2000" value="2000" step="10">
+        </div>
+      </div>
+    </div>
+
+    <!-- Year of Completion -->
+    <div class="filter-section">
+      <label>Year of completion</label>
+      <div class="range-wrapper">
+        <div class="range-labels">
+          <span id="yearMinLabel">2010</span>
+          <span id="yearMaxLabel">2026</span>
+        </div>
+        <div class="range-track">
+          <div class="range-fill" id="yearFill"></div>
+          <input type="range" id="yearMin" min="2010" max="2026" value="2010">
+          <input type="range" id="yearMax" min="2010" max="2026" value="2026">
+        </div>
+      </div>
+    </div>
+
+    <!-- Power Distribution Program -->
+    <div class="filter-section">
+      <label>Power distribution program</label>
+      <div class="checkbox-list" id="programFilters"></div>
+    </div>
+
+    <!-- Site Type -->
+    <div class="filter-section">
+      <label>Site type</label>
+      <div class="checkbox-list" id="siteTypeFilters"></div>
+    </div>
+
+    <!-- Client Type -->
+    <div class="filter-section">
+      <label>Client type</label>
+      <div class="checkbox-list" id="clientFilters"></div>
+    </div>
+
+    <!-- Module Type -->
+    <div class="filter-section">
+      <label>Module type</label>
+      <div class="checkbox-list" id="moduleFilters"></div>
+    </div>
+
+    <!-- Reset Button -->
+    <button class="reset-btn" id="resetFilters">Reset all filters</button>
+  </div>
+</div>
+
+<!-- Project Details Modal -->
+<div class="details-modal" id="detailsModal">
+  <div class="details-content">
+    <button class="details-close" id="detailsClose">×</button>
+    <div class="details-body">
+      <h2 class="details-title" id="detailsTitle"></h2>
+      <div id="detailsGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">×</button>
+  <button class="lightbox-nav lightbox-prev" onclick="prevImage(event)">‹</button>
+  <div class="lightbox-content" onclick="event.stopPropagation()">
+    <img id="lightboxImage" src="" alt="">
+    <div class="lightbox-info">
+      <span id="lightboxCaption"></span>
+      <span id="lightboxCounter"></span>
+    </div>
+  </div>
+  <button class="lightbox-nav lightbox-next" onclick="nextImage(event)">›</button>
+</div>
+
+<script>
+/**
+ * Solar Projects Map - Production Ready
+ * Features: Google Sheets integration, search, filters, project details modal
+ */
+(function() {
+  'use strict';
+
+  // ============================================
+  // CONFIGURATION
+  // ============================================
+  const CONFIG = {
+    SHEETS_URL: 'https://script.google.com/macros/s/AKfycbz5DINO3UJ8WoU0DVj8u0AIk4jl1U2YVgSWv6-Wc4m9zzFrBG24BnR5v3mEStGOgTqKiA/exec',
+    MAP_CENTER: [43.7, -79.4],
+    MAP_ZOOM: 9,
+    TILE_URL: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    TILE_ATTRIBUTION: '&copy; OpenStreetMap &copy; CARTO',
+    MAX_RETRIES: 3,
+    RETRY_DELAY: 1000
+  };
+
+  // ============================================
+  // STATE
+  // ============================================
+  const state = {
+    projects: [],
+    markers: [],
+    filters: {
+      search: '',
+      capMin: 0,
+      capMax: 2000,
+      yearMin: 2010,
+      yearMax: 2026,
+      programs: [],
+      siteTypes: [],
+      clients: [],
+      modules: []
+    },
+    filterOptions: {
+      programs: [],
+      siteTypes: [],
+      clients: [],
+      modules: []
+    }
+  };
+
+  // ============================================
+  // DOM CACHE
+  // ============================================
+  const $ = id => document.getElementById(id);
+  let map;
+
+  // ============================================
+  // MARKER ICON
+  // ============================================
+  const markerIcon = L.divIcon({
+    className: 'custom-marker',
+    html: `<svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24c0-8.84-7.16-16-16-16z" fill="#F5A623"/>
+      <circle cx="16" cy="16" r="6" fill="white"/>
+    </svg>`,
+    iconSize: [32, 40],
+    iconAnchor: [16, 40],
+    popupAnchor: [0, -36]
+  });
+
+  // ============================================
+  // INITIALIZATION
+  // ============================================
+  async function init() {
+    try {
+      initMap();
+      setupEventListeners();
+      
+      state.projects = await fetchProjects();
+      
+      if (state.projects.length === 0) {
+        throw new Error('No projects found');
+      }
+      
+      console.log(`✅ Loaded ${state.projects.length} projects`);
+      
+      extractFilterOptions();
+      renderFilterCheckboxes();
+      updateRangeDisplays();
+      renderMarkers();
+      fitMapToBounds();
+      hideLoading();
+      
+    } catch (error) {
+      console.error('Init failed:', error);
+      showError(error.message);
+    }
+  }
+
+  function initMap() {
+    map = L.map('map', { zoomControl: true }).setView(CONFIG.MAP_CENTER, CONFIG.MAP_ZOOM);
+    L.tileLayer(CONFIG.TILE_URL, {
+      attribution: CONFIG.TILE_ATTRIBUTION,
+      className: 'darker-tiles',
+      maxZoom: 19
+    }).addTo(map);
+  }
+
+  // ============================================
+  // DATA FETCHING
+  // ============================================
+  async function fetchProjects(retry = 0) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      
+      const res = await fetch(CONFIG.SHEETS_URL, { signal: controller.signal });
+      clearTimeout(timeout);
+      
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      
+      const data = await res.json();
+      console.log('📦 Raw API data (total):', data.length);
+      console.log('📦 First item keys:', Object.keys(data[0] || {}));
+      console.log('📦 First item:', JSON.stringify(data[0], null, 2));
+      return normalizeData(data);
+      
+    } catch (err) {
+      if (retry < CONFIG.MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, CONFIG.RETRY_DELAY * (retry + 1)));
+        return fetchProjects(retry + 1);
+      }
+      throw err;
+    }
+  }
+
+  function normalizeData(data) {
+    if (!Array.isArray(data)) throw new Error('Invalid data format');
+    
+    // Debug: show which items have coordinates
+    let validCount = 0;
+    data.forEach((item, i) => {
+      const lat = parseFloat(item.lat || item.latitude);
+      const lng = parseFloat(item.lng || item.longitude);
+      const hasCoords = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+      if (hasCoords) validCount++;
+      if (i < 3) console.log(`📍 Item ${i}: lat=${item.lat}, lng=${item.lng}, hasCoords=${hasCoords}`);
+    });
+    console.log(`📍 Total items with valid coords: ${validCount} / ${data.length}`);
+    
+    return data.filter(item => {
+      const lat = parseFloat(item.lat || item.latitude);
+      const lng = parseFloat(item.lng || item.longitude);
+      return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+    }).map(item => ({
+      name: item.projectNum || item['Project #'] || 'Unnamed',
+      address: item.address || '',
+      owner: item.owner || '',
+      capacity: parseFloat(item.capacity) || 0,
+      year: parseInt(item.year) || new Date().getFullYear(),
+      program: item.program || '',
+      siteType: item.siteType || '',
+      clientType: item.clientType || '',
+      module: item.module || '',
+      racking: item.racking || '',
+      inverter: item.inverter || '',
+      notes: item.notes || '',
+      lat: parseFloat(item.lat || item.latitude),
+      lng: parseFloat(item.lng || item.longitude),
+      images: item.images || []
+    }));
+  }
+
+  // ============================================
+  // FILTER OPTIONS
+  // ============================================
+  
+  /**
+   * Extracts unique filter options, handling comma-separated values
+   * e.g., "Canadian Solar, Jinko" becomes two separate options
+   */
+  function extractFilterOptions() {
+    const uniqueFromField = (arr, key) => {
+      const allValues = [];
+      arr.forEach(p => {
+        const value = p[key];
+        if (value) {
+          // Convert to string and split by comma, trim whitespace
+          const strValue = String(value);
+          const parts = strValue.split(',').map(v => v.trim()).filter(Boolean);
+          allValues.push(...parts);
+        }
+      });
+      return [...new Set(allValues)].sort();
+    };
+    
+    state.filterOptions.programs = uniqueFromField(state.projects, 'program');
+    state.filterOptions.siteTypes = uniqueFromField(state.projects, 'siteType');
+    state.filterOptions.clients = uniqueFromField(state.projects, 'clientType');
+    state.filterOptions.modules = uniqueFromField(state.projects, 'module');
+  }
+
+  function renderFilterCheckboxes() {
+    renderCheckboxGroup('programFilters', state.filterOptions.programs, 'program');
+    renderCheckboxGroup('siteTypeFilters', state.filterOptions.siteTypes, 'siteType');
+    renderCheckboxGroup('clientFilters', state.filterOptions.clients, 'client');
+    renderCheckboxGroup('moduleFilters', state.filterOptions.modules, 'module');
+  }
+
+  function renderCheckboxGroup(containerId, options, filterKey) {
+    const container = $(containerId);
+    container.innerHTML = options.map(opt => `
+      <label class="checkbox-item">
+        <input type="checkbox" value="${escapeHtml(opt)}" data-filter="${filterKey}">
+        ${escapeHtml(opt)}
+      </label>
+    `).join('');
+    
+    container.querySelectorAll('input').forEach(cb => {
+      cb.addEventListener('change', () => {
+        updateCheckboxFilter(filterKey, cb.value, cb.checked);
+        renderMarkers();
+      });
+    });
+  }
+
+  function updateCheckboxFilter(key, value, checked) {
+    // Map filter key names to state property names
+    const keyMap = {
+      'program': 'programs',
+      'siteType': 'siteTypes',
+      'client': 'clients',
+      'module': 'modules'
+    };
+    const filterKey = keyMap[key] || key;
+    
+    if (checked) {
+      if (!state.filters[filterKey].includes(value)) {
+        state.filters[filterKey].push(value);
+      }
+    } else {
+      state.filters[filterKey] = state.filters[filterKey].filter(v => v !== value);
+    }
+  }
+
+  // ============================================
+  // FILTERING
+  // ============================================
+  
+  /**
+   * Checks if any selected filter matches any value in a comma-separated field
+   * e.g., selectedFilters: ["Canadian Solar"], fieldValue: "Canadian Solar, Jinko" → true
+   */
+  function matchesCommaField(selectedFilters, fieldValue) {
+    if (selectedFilters.length === 0) return true;
+    if (!fieldValue) return false;
+    
+    // Convert to string to handle numbers and other types
+    const strValue = String(fieldValue);
+    const fieldParts = strValue.split(',').map(v => v.trim().toLowerCase());
+    return selectedFilters.some(filter => 
+      fieldParts.some(part => part === filter.toLowerCase())
+    );
+  }
+  
+  function getFilteredProjects() {
+    return state.projects.filter(p => {
+      // Search - searches across multiple fields
+      if (state.filters.search) {
+        const s = state.filters.search.toLowerCase();
+        const searchable = [p.name, p.address, p.owner, p.siteType, p.clientType, p.module, p.inverter].join(' ').toLowerCase();
+        if (!searchable.includes(s)) return false;
+      }
+      
+      // Capacity
+      if (p.capacity < state.filters.capMin || p.capacity > state.filters.capMax) return false;
+      
+      // Year
+      if (p.year < state.filters.yearMin || p.year > state.filters.yearMax) return false;
+      
+      // Program - supports comma-separated values
+      if (!matchesCommaField(state.filters.programs, p.program)) return false;
+      
+      // Site Type - supports comma-separated values
+      if (!matchesCommaField(state.filters.siteTypes, p.siteType)) return false;
+      
+      // Client - supports comma-separated values
+      if (!matchesCommaField(state.filters.clients, p.clientType)) return false;
+      
+      // Module - supports comma-separated values
+      if (!matchesCommaField(state.filters.modules, p.module)) return false;
+      
+      return true;
+    });
+  }
+
+  // ============================================
+  // RENDERING
+  // ============================================
+  function renderMarkers() {
+    state.markers.forEach(m => map.removeLayer(m));
+    state.markers = [];
+    
+    const filtered = getFilteredProjects();
+    
+    filtered.forEach(p => {
+      const marker = L.marker([p.lat, p.lng], { icon: markerIcon })
+        .bindPopup(createPopupHTML(p), { maxWidth: 300, className: 'custom-popup' });
+      marker.addTo(map);
+      state.markers.push(marker);
+      
+      // Add click handler for details button
+      marker.on('popupopen', () => {
+        const btn = document.querySelector('.popup-details-btn');
+        if (btn) {
+          btn.onclick = () => {
+            map.closePopup();
+            showProjectDetails(p);
+          };
+        }
+      });
+    });
+  }
+
+  function createPopupHTML(p) {
+    return `
+      <div class="popup-content">
+        <div class="popup-name">${escapeHtml(p.name)}</div>
+        <div class="popup-info">Owner: <span>${escapeHtml(p.owner) || 'N/A'}</span></div>
+        <div class="popup-info">Capacity (DC): <span>${p.capacity.toLocaleString()} kW</span></div>
+        <div class="popup-info">Completed: <span>${p.year}</span></div>
+        ${p.clientType ? `<div class="popup-tag">${escapeHtml(p.clientType)}</div>` : ''}
+        <button class="popup-details-btn">
+          Project details
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+    `;
+  }
+
+  // ============================================
+  // PROJECT DETAILS MODAL
+  // ============================================
+  function showProjectDetails(p) {
+    $('detailsTitle').textContent = p.name;
+    
+    const fields = [
+      { label: 'Address', value: p.address },
+      { label: 'Owner', value: p.owner },
+      { label: 'Capacity (DC)', value: p.capacity ? `${p.capacity.toLocaleString()} kW` : '' },
+      { label: 'Completion', value: p.year },
+      { label: 'Site type', value: p.siteType },
+      { label: 'Client type', value: p.clientType },
+      { label: 'Power distribution program', value: p.program },
+      { label: 'Module type', value: p.module },
+      { label: 'Inverter type', value: p.inverter },
+      { label: 'Racking type', value: p.racking }
+    ].filter(f => f.value);
+    
+    let html = `<div class="details-grid">` + fields.map(f => `
+      <div class="details-item">
+        <div class="details-label">${f.label}:</div>
+        <div class="details-value">${escapeHtml(String(f.value))}</div>
+      </div>
+    `).join('') + `</div>`;
+    
+    // Add image gallery if images exist
+    if (p.images && p.images.length > 0) {
+      html += `
+        <div class="details-gallery">
+          <div class="gallery-label">Project Photos (${p.images.length})</div>
+          <div class="gallery-grid">
+            ${p.images.map((img, idx) => `
+              <div class="gallery-item" onclick="openLightbox(${idx})">
+                <img src="${img.thumbnail}" alt="${escapeHtml(img.name)}" loading="lazy">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      // Store images for lightbox
+      window.currentImages = p.images;
+    }
+    
+    $('detailsGrid').innerHTML = html;
+    $('detailsModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  
+  // Lightbox functions
+  window.currentImages = [];
+  window.currentImageIndex = 0;
+  
+  window.openLightbox = function(index) {
+    window.currentImageIndex = index;
+    const img = window.currentImages[index];
+    if (!img) return;
+    
+    $('lightboxImage').src = img.url;
+    $('lightboxCaption').textContent = img.name;
+    $('lightboxCounter').textContent = `${index + 1} / ${window.currentImages.length}`;
+    $('lightbox').classList.add('open');
+  };
+  
+  window.closeLightbox = function() {
+    $('lightbox').classList.remove('open');
+  };
+  
+  window.prevImage = function(e) {
+    e.stopPropagation();
+    window.currentImageIndex = (window.currentImageIndex - 1 + window.currentImages.length) % window.currentImages.length;
+    window.openLightbox(window.currentImageIndex);
+  };
+  
+  window.nextImage = function(e) {
+    e.stopPropagation();
+    window.currentImageIndex = (window.currentImageIndex + 1) % window.currentImages.length;
+    window.openLightbox(window.currentImageIndex);
+  };
+
+  function hideProjectDetails() {
+    $('detailsModal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // ============================================
+  // RANGE SLIDERS
+  // ============================================
+  function updateRangeDisplays() {
+    // Capacity
+    const capMin = parseInt($('capMin').value);
+    const capMax = parseInt($('capMax').value);
+    $('capMinLabel').textContent = capMin >= 1000 ? `${(capMin/1000).toFixed(1)} MW` : `${capMin} kW`;
+    $('capMaxLabel').textContent = capMax >= 1000 ? `${(capMax/1000).toFixed(1)} MW` : `${capMax} kW`;
+    updateRangeFill('capFill', $('capMin'), $('capMax'));
+    
+    // Year
+    $('yearMinLabel').textContent = $('yearMin').value;
+    $('yearMaxLabel').textContent = $('yearMax').value;
+    updateRangeFill('yearFill', $('yearMin'), $('yearMax'));
+  }
+
+  function updateRangeFill(fillId, minInput, maxInput) {
+    const min = parseInt(minInput.min);
+    const max = parseInt(minInput.max);
+    const minVal = parseInt(minInput.value);
+    const maxVal = parseInt(maxInput.value);
+    
+    const left = ((minVal - min) / (max - min)) * 100;
+    const width = ((maxVal - minVal) / (max - min)) * 100;
+    
+    $(fillId).style.left = left + '%';
+    $(fillId).style.width = width + '%';
+  }
+
+  // ============================================
+  // EVENT LISTENERS
+  // ============================================
+  function setupEventListeners() {
+    // Filters panel toggle
+    $('filtersBtn').onclick = () => $('filtersPanel').classList.add('open');
+    $('filtersClose').onclick = () => $('filtersPanel').classList.remove('open');
+    
+    // Search
+    $('searchInput').oninput = debounce(e => {
+      state.filters.search = e.target.value;
+      renderMarkers();
+    }, 300);
+    
+    // Capacity range
+    ['capMin', 'capMax'].forEach(id => {
+      $(id).oninput = () => {
+        let minVal = parseInt($('capMin').value);
+        let maxVal = parseInt($('capMax').value);
+        
+        if (minVal > maxVal) {
+          if (id === 'capMin') $('capMin').value = maxVal;
+          else $('capMax').value = minVal;
+        }
+        
+        state.filters.capMin = parseInt($('capMin').value);
+        state.filters.capMax = parseInt($('capMax').value);
+        updateRangeDisplays();
+        debouncedRender();
+      };
+    });
+    
+    // Year range
+    ['yearMin', 'yearMax'].forEach(id => {
+      $(id).oninput = () => {
+        let minVal = parseInt($('yearMin').value);
+        let maxVal = parseInt($('yearMax').value);
+        
+        if (minVal > maxVal) {
+          if (id === 'yearMin') $('yearMin').value = maxVal;
+          else $('yearMax').value = minVal;
+        }
+        
+        state.filters.yearMin = parseInt($('yearMin').value);
+        state.filters.yearMax = parseInt($('yearMax').value);
+        updateRangeDisplays();
+        debouncedRender();
+      };
+    });
+    
+    // Reset
+    $('resetFilters').onclick = resetFilters;
+    
+    // Details modal
+    $('detailsClose').onclick = hideProjectDetails;
+    $('detailsModal').onclick = e => {
+      if (e.target === $('detailsModal')) hideProjectDetails();
+    };
+    
+    // Keyboard
+    document.onkeydown = e => {
+      // Lightbox navigation
+      if ($('lightbox').classList.contains('open')) {
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') prevImage(e);
+        if (e.key === 'ArrowRight') nextImage(e);
+        return;
+      }
+      // Modal/panel close
+      if (e.key === 'Escape') {
+        $('filtersPanel').classList.remove('open');
+        hideProjectDetails();
+      }
+    };
+  }
+
+  const debouncedRender = debounce(() => renderMarkers(), 150);
+
+  function resetFilters() {
+    state.filters = {
+      search: '',
+      capMin: 0,
+      capMax: 2000,
+      yearMin: 2010,
+      yearMax: 2026,
+      programs: [],
+      siteTypes: [],
+      clients: [],
+      modules: []
+    };
+    
+    $('searchInput').value = '';
+    $('capMin').value = 0;
+    $('capMax').value = 2000;
+    $('yearMin').value = 2010;
+    $('yearMax').value = 2026;
+    
+    document.querySelectorAll('.checkbox-list input').forEach(cb => cb.checked = false);
+    
+    updateRangeDisplays();
+    renderMarkers();
+  }
+
+  // ============================================
+  // UTILITIES
+  // ============================================
+  function fitMapToBounds() {
+    if (state.markers.length > 0) {
+      const group = L.featureGroup(state.markers);
+      map.fitBounds(group.getBounds().pad(0.1));
+    }
+  }
+
+  function hideLoading() {
+    $('loadingOverlay').classList.add('hidden');
+    setTimeout(() => $('loadingOverlay').style.display = 'none', 300);
+  }
+
+  function showError(msg) {
+    $('loadingOverlay').innerHTML = `
+      <div class="error-box">
+        <h3>Unable to load data</h3>
+        <p>${msg}</p>
+        <button onclick="location.reload()">Try again</button>
+      </div>
+    `;
+  }
+
+  function debounce(fn, wait) {
+    let t;
+    return function(...args) {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), wait);
+    };
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ============================================
+  // START
+  // ============================================
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+</body>
+</html>
