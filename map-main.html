@@ -228,6 +228,8 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   background: var(--color-white); border-radius: var(--radius-lg);
   width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
   box-shadow: var(--shadow-lg); position: relative;
+  -webkit-overflow-scrolling: touch; /* Smooth iOS scrolling */
+  overscroll-behavior: auto; /* Allow scroll chaining to parent/iframe */
 }
 
 .details-close {
@@ -421,6 +423,9 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     margin: 0;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     animation: slideUp 0.3s ease;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: auto; /* Allow scroll to pass to parent page when at end */
+    touch-action: pan-y; /* Enable vertical touch scrolling */
   }
   @keyframes slideUp {
     from { transform: translateY(100%); }
@@ -1013,7 +1018,6 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     
     $('detailsGrid').innerHTML = html;
     $('detailsModal').classList.add('open');
-    document.body.style.overflow = 'hidden';
   }
   
   // ============================================
@@ -1070,7 +1074,6 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
 
   function hideProjectDetails() {
     $('detailsModal').classList.remove('open');
-    document.body.style.overflow = '';
   }
 
   // ============================================
