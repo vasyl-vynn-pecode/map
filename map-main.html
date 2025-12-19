@@ -9,6 +9,11 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+<!-- Marker Clustering -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
 <style>
 /* ============================================
    CSS VARIABLES
@@ -190,7 +195,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   object-fit: cover;
 }
 
-.popup-body { padding: 16px 20px 20px; }
+.popup-body { padding: 16px 20px 0; }
 .popup-name { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: var(--color-text); line-height: 1.3; }
 .popup-info { font-size: 13px; color: var(--color-text-light); margin-bottom: 5px; }
 .popup-info span { color: var(--color-text); font-weight: 500; }
@@ -201,9 +206,9 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
 }
 .popup-details-btn {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; margin-top: 16px; padding: 12px;
+  width: calc(100% + 40px); margin: 16px -20px 0; padding: 14px 20px;
   background: var(--color-text); color: var(--color-white);
-  border: none; border-radius: var(--radius-md);
+  border: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s;
 }
 .popup-details-btn:hover { background: #444; }
@@ -358,17 +363,123 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
    ============================================ */
 .custom-marker { background: none; border: none; }
 
+/* Cluster Markers - Custom orange styling */
+.marker-cluster {
+  background: rgba(245, 166, 35, 0.4);
+}
+.marker-cluster div {
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+}
+.marker-cluster-small {
+  background: rgba(245, 166, 35, 0.4);
+}
+.marker-cluster-small div {
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  margin-left: 5px;
+  margin-top: 5px;
+}
+.marker-cluster-medium {
+  background: rgba(245, 166, 35, 0.5);
+}
+.marker-cluster-medium div {
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  margin-left: 7px;
+  margin-top: 7px;
+}
+.marker-cluster-large {
+  background: rgba(245, 166, 35, 0.6);
+}
+.marker-cluster-large div {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  margin-left: 8px;
+  margin-top: 8px;
+}
+
 /* ============================================
    MOBILE RESPONSIVE
    ============================================ */
 @media (max-width: 768px) {
   .filters-panel { width: 100%; }
-  .details-content { width: 95%; margin: 20px; }
-  .details-grid { grid-template-columns: 1fr; }
-  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  
+  /* Project Details Modal - Mobile optimized */
+  .details-modal {
+    align-items: flex-end; /* Slide up from bottom */
+  }
+  .details-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: 85vh;
+    margin: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .details-body {
+    padding: 24px 20px 32px;
+  }
+  .details-title {
+    font-size: 20px;
+    margin-bottom: 20px;
+    padding-right: 36px;
+  }
+  .details-close {
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    font-size: 24px;
+  }
+  .details-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .details-label {
+    font-size: 12px;
+  }
+  .details-value {
+    font-size: 14px;
+  }
+  .details-gallery {
+    margin-top: 24px;
+    padding-top: 20px;
+  }
+  .gallery-label {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+  }
+  
+  /* Lightbox - Mobile */
   .lightbox-nav { font-size: 32px; padding: 15px 12px; }
   .lightbox-prev { left: 10px; }
   .lightbox-next { right: 10px; }
+  
+  /* Popup - Mobile */
+  .leaflet-popup-content { width: 260px !important; }
+  .popup-body { padding: 14px 16px 0; }
+  .popup-name { font-size: 14px; }
+  .popup-info { font-size: 12px; }
+  .popup-details-btn { 
+    width: calc(100% + 32px); 
+    margin: 14px -16px 0; 
+    padding: 12px 16px; 
+    font-size: 13px; 
+  }
 }
 </style>
 </head>
@@ -473,17 +584,17 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
 </div>
 
 <!-- Lightbox -->
-<div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="lightbox-close" onclick="closeLightbox()">×</button>
-  <button class="lightbox-nav lightbox-prev" onclick="prevImage(event)">‹</button>
-  <div class="lightbox-content" onclick="event.stopPropagation()">
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">×</button>
+  <button class="lightbox-nav lightbox-prev" id="lightboxPrev">‹</button>
+  <div class="lightbox-content" id="lightboxContent">
     <img id="lightboxImage" src="" alt="">
     <div class="lightbox-info">
       <span id="lightboxCaption"></span>
       <span id="lightboxCounter"></span>
     </div>
   </div>
-  <button class="lightbox-nav lightbox-next" onclick="nextImage(event)">›</button>
+  <button class="lightbox-nav lightbox-next" id="lightboxNext">›</button>
 </div>
 
 <script>
@@ -537,6 +648,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   // ============================================
   const $ = id => document.getElementById(id);
   let map;
+  let markerClusterGroup;
 
   // ============================================
   // MARKER ICON
@@ -566,8 +678,6 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
         throw new Error('No projects found');
       }
       
-      console.log(`✅ Loaded ${state.projects.length} projects`);
-      
       extractFilterOptions();
       renderFilterCheckboxes();
       updateRangeDisplays();
@@ -576,34 +686,49 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       hideLoading();
       
     } catch (error) {
-      console.error('Init failed:', error);
       showError(error.message);
     }
   }
 
   function initMap() {
+    // Detect if user is on a touch device (mobile/tablet)
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    
     map = L.map('map', { 
       zoomControl: false,  // Disable default (we'll add custom position)
-      scrollWheelZoom: false  // Disable scroll zoom - users can use +/- buttons or double-click
+      scrollWheelZoom: false,  // Disable scroll zoom - users can use +/- buttons or double-click
+      dragging: !isTouchDevice,  // Disable dragging on touch devices so page can scroll
+      tap: !isTouchDevice  // Disable tap handler on mobile to prevent scroll issues
     }).setView(CONFIG.MAP_CENTER, CONFIG.MAP_ZOOM);
     
     // Add zoom control to top-right to avoid overlap with filter button
     L.control.zoom({ position: 'topright' }).addTo(map);
     
-    // Enable scroll zoom only when user clicks on map (optional UX improvement)
-    map.on('click', function() {
-      map.scrollWheelZoom.enable();
-    });
+    // Desktop only: Enable scroll zoom when user clicks on map
+    if (!isTouchDevice) {
+      map.on('click', function() {
+        map.scrollWheelZoom.enable();
+      });
+      
+      map.on('mouseout', function() {
+        map.scrollWheelZoom.disable();
+      });
+    }
     
-    // Disable scroll zoom when mouse leaves map
-    map.on('mouseout', function() {
-      map.scrollWheelZoom.disable();
-    });
     L.tileLayer(CONFIG.TILE_URL, {
       attribution: CONFIG.TILE_ATTRIBUTION,
       className: 'darker-tiles',
       maxZoom: 19
     }).addTo(map);
+    
+    // Initialize marker cluster group with custom options
+    markerClusterGroup = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true
+    });
+    map.addLayer(markerClusterGroup);
   }
 
   // ============================================
@@ -620,9 +745,6 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       
       const data = await res.json();
-      console.log('📦 Raw API data (total):', data.length);
-      console.log('📦 First item keys:', Object.keys(data[0] || {}));
-      console.log('📦 First item:', JSON.stringify(data[0], null, 2));
       return normalizeData(data);
       
     } catch (err) {
@@ -636,17 +758,6 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
 
   function normalizeData(data) {
     if (!Array.isArray(data)) throw new Error('Invalid data format');
-    
-    // Debug: show which items have coordinates
-    let validCount = 0;
-    data.forEach((item, i) => {
-      const lat = parseFloat(item.lat || item.latitude);
-      const lng = parseFloat(item.lng || item.longitude);
-      const hasCoords = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
-      if (hasCoords) validCount++;
-      if (i < 3) console.log(`📍 Item ${i}: lat=${item.lat}, lng=${item.lng}, hasCoords=${hasCoords}`);
-    });
-    console.log(`📍 Total items with valid coords: ${validCount} / ${data.length}`);
     
     return data.filter(item => {
       const lat = parseFloat(item.lat || item.latitude);
@@ -798,7 +909,8 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   // RENDERING
   // ============================================
   function renderMarkers() {
-    state.markers.forEach(m => map.removeLayer(m));
+    // Clear existing markers from cluster group
+    markerClusterGroup.clearLayers();
     state.markers = [];
     
     const filtered = getFilteredProjects();
@@ -806,7 +918,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     filtered.forEach(p => {
       const marker = L.marker([p.lat, p.lng], { icon: markerIcon })
         .bindPopup(createPopupHTML(p), { maxWidth: 300, className: 'custom-popup' });
-      marker.addTo(map);
+      
       state.markers.push(marker);
       
       // Add click handler for details button
@@ -818,8 +930,11 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
             showProjectDetails(p);
           };
         }
-  });
-});
+      });
+    });
+    
+    // Add all markers to cluster group at once (better performance)
+    markerClusterGroup.addLayers(state.markers);
   }
 
   function createPopupHTML(p) {
@@ -893,7 +1008,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
         </div>
       `;
       // Store images for lightbox
-      window.currentImages = p.images;
+      currentImages = p.images;
     }
     
     $('detailsGrid').innerHTML = html;
@@ -901,9 +1016,11 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     document.body.style.overflow = 'hidden';
   }
   
-  // Lightbox functions
-  window.currentImages = [];
-  window.currentImageIndex = 0;
+  // ============================================
+  // LIGHTBOX
+  // ============================================
+  let currentImages = [];
+  let currentImageIndex = 0;
   
   /**
    * Optimizes Cloudinary URL for faster lightbox loading
@@ -912,10 +1029,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   function optimizeLightboxUrl(url) {
     if (!url) return url;
     
-    // Check if it's a Cloudinary URL
     if (url.includes('cloudinary.com') && url.includes('/upload/')) {
-      // Replace existing transformation or add new one
-      // Target: w_1200, q_70, f_auto (fast loading, good quality)
       return url.replace(
         /\/upload\/([^/]*)/,
         '/upload/c_limit,w_1200,q_70,f_auto'
@@ -924,33 +1038,35 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     return url;
   }
   
-  window.openLightbox = function(index) {
-    window.currentImageIndex = index;
-    const img = window.currentImages[index];
+  function openLightbox(index) {
+    currentImageIndex = index;
+    const img = currentImages[index];
     if (!img) return;
     
-    // Use optimized URL for faster loading
     $('lightboxImage').src = optimizeLightboxUrl(img.url);
     $('lightboxCaption').textContent = img.name;
-    $('lightboxCounter').textContent = `${index + 1} / ${window.currentImages.length}`;
+    $('lightboxCounter').textContent = `${index + 1} / ${currentImages.length}`;
     $('lightbox').classList.add('open');
-  };
+    document.body.style.overflow = 'hidden';
+  }
   
-  window.closeLightbox = function() {
+  function closeLightbox() {
     $('lightbox').classList.remove('open');
-  };
+    document.body.style.overflow = '';
+  }
   
-  window.prevImage = function(e) {
-    e.stopPropagation();
-    window.currentImageIndex = (window.currentImageIndex - 1 + window.currentImages.length) % window.currentImages.length;
-    window.openLightbox(window.currentImageIndex);
-  };
+  function prevImage() {
+    currentImageIndex = (currentImageIndex - 1 + currentImages.length) % currentImages.length;
+    openLightbox(currentImageIndex);
+  }
   
-  window.nextImage = function(e) {
-    e.stopPropagation();
-    window.currentImageIndex = (window.currentImageIndex + 1) % window.currentImages.length;
-    window.openLightbox(window.currentImageIndex);
-  };
+  function nextImage() {
+    currentImageIndex = (currentImageIndex + 1) % currentImages.length;
+    openLightbox(currentImageIndex);
+  }
+  
+  // Expose openLightbox for gallery onclick (generated HTML)
+  window.openLightbox = openLightbox;
 
   function hideProjectDetails() {
     $('detailsModal').classList.remove('open');
@@ -1046,16 +1162,23 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       if (e.target === $('detailsModal')) hideProjectDetails();
     };
     
-    // Keyboard
+    // Lightbox events
+    $('lightbox').onclick = e => {
+      if (e.target === $('lightbox')) closeLightbox();
+    };
+    $('lightboxClose').onclick = closeLightbox;
+    $('lightboxPrev').onclick = e => { e.stopPropagation(); prevImage(); };
+    $('lightboxNext').onclick = e => { e.stopPropagation(); nextImage(); };
+    $('lightboxContent').onclick = e => e.stopPropagation();
+    
+    // Keyboard navigation
     document.onkeydown = e => {
-      // Lightbox navigation
       if ($('lightbox').classList.contains('open')) {
         if (e.key === 'Escape') closeLightbox();
-        if (e.key === 'ArrowLeft') prevImage(e);
-        if (e.key === 'ArrowRight') nextImage(e);
+        if (e.key === 'ArrowLeft') prevImage();
+        if (e.key === 'ArrowRight') nextImage();
         return;
       }
-      // Modal/panel close
       if (e.key === 'Escape') {
         $('filtersPanel').classList.remove('open');
         hideProjectDetails();
@@ -1095,8 +1218,10 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   // ============================================
   function fitMapToBounds() {
     if (state.markers.length > 0) {
-      const group = L.featureGroup(state.markers);
-      map.fitBounds(group.getBounds().pad(0.1));
+      const bounds = markerClusterGroup.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.1));
+      }
     }
   }
 
