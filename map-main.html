@@ -406,12 +406,12 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       <div class="range-wrapper">
         <div class="range-labels">
           <span id="capMinLabel">0 kW</span>
-          <span id="capMaxLabel">2 MW</span>
+          <span id="capMaxLabel">4 MW</span>
         </div>
         <div class="range-track">
           <div class="range-fill" id="capFill"></div>
-          <input type="range" id="capMin" min="0" max="2000" value="0" step="10">
-          <input type="range" id="capMax" min="0" max="2000" value="2000" step="10">
+          <input type="range" id="capMin" min="0" max="4000" value="0" step="10">
+          <input type="range" id="capMax" min="0" max="4000" value="4000" step="10">
         </div>
       </div>
     </div>
@@ -438,11 +438,11 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       <div class="checkbox-list" id="programFilters"></div>
     </div>
 
-    <!-- Site Type -->
+    <!-- Project Type -->
     <div class="filter-section">
-      <label>Site type</label>
-      <div class="checkbox-list" id="siteTypeFilters"></div>
-    </div>
+      <label>Project type</label>
+      <div class="checkbox-list" id="projectTypeFilters"></div>
+      </div>
 
     <!-- Client Type -->
     <div class="filter-section">
@@ -459,7 +459,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     <!-- Reset Button -->
     <button class="reset-btn" id="resetFilters">Reset all filters</button>
   </div>
-</div>
+      </div>
 
 <!-- Project Details Modal -->
 <div class="details-modal" id="detailsModal">
@@ -498,7 +498,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   // CONFIGURATION
   // ============================================
   const CONFIG = {
-    SHEETS_URL: 'https://script.google.com/macros/s/AKfycbz5DINO3UJ8WoU0DVj8u0AIk4jl1U2YVgSWv6-Wc4m9zzFrBG24BnR5v3mEStGOgTqKiA/exec',
+    SHEETS_URL: 'https://script.google.com/macros/s/AKfycbwgT2s3oumZa6uC8IjGq1bCoVr6EzZNhXLAAFXKbDllm55o15ZHtuxCdY2P0JNXXNY/exec',
     MAP_CENTER: [43.7, -79.4],
     MAP_ZOOM: 9,
     TILE_URL: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
@@ -516,17 +516,17 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     filters: {
       search: '',
       capMin: 0,
-      capMax: 2000,
+      capMax: 4000,
       yearMin: 2010,
       yearMax: 2026,
       programs: [],
-      siteTypes: [],
+      projectTypes: [],
       clients: [],
       modules: []
     },
     filterOptions: {
       programs: [],
-      siteTypes: [],
+      projectTypes: [],
       clients: [],
       modules: []
     }
@@ -542,7 +542,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   // MARKER ICON
   // ============================================
   const markerIcon = L.divIcon({
-    className: 'custom-marker',
+  className: 'custom-marker',
     html: `<svg width="38" height="46" viewBox="-3 -3 38 46" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24c0-8.84-7.16-16-16-16z" fill="#F5A623" stroke="white" stroke-width="3"/>
       <circle cx="16" cy="16" r="6" fill="white"/>
@@ -583,9 +583,12 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
 
   function initMap() {
     map = L.map('map', { 
-      zoomControl: true,
+      zoomControl: false,  // Disable default (we'll add custom position)
       scrollWheelZoom: false  // Disable scroll zoom - users can use +/- buttons or double-click
     }).setView(CONFIG.MAP_CENTER, CONFIG.MAP_ZOOM);
+    
+    // Add zoom control to top-right to avoid overlap with filter button
+    L.control.zoom({ position: 'topright' }).addTo(map);
     
     // Enable scroll zoom only when user clicks on map (optional UX improvement)
     map.on('click', function() {
@@ -656,7 +659,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       capacity: parseFloat(item.capacity) || 0,
       year: parseInt(item.year) || new Date().getFullYear(),
       program: item.program || '',
-      siteType: item.siteType || '',
+      projectType: item.projectType || item.siteType || '',
       clientType: item.clientType || '',
       module: item.module || '',
       racking: item.racking || '',
@@ -692,14 +695,14 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     };
     
     state.filterOptions.programs = uniqueFromField(state.projects, 'program');
-    state.filterOptions.siteTypes = uniqueFromField(state.projects, 'siteType');
+    state.filterOptions.projectTypes = uniqueFromField(state.projects, 'projectType');
     state.filterOptions.clients = uniqueFromField(state.projects, 'clientType');
     state.filterOptions.modules = uniqueFromField(state.projects, 'module');
   }
 
   function renderFilterCheckboxes() {
     renderCheckboxGroup('programFilters', state.filterOptions.programs, 'program');
-    renderCheckboxGroup('siteTypeFilters', state.filterOptions.siteTypes, 'siteType');
+    renderCheckboxGroup('projectTypeFilters', state.filterOptions.projectTypes, 'projectType');
     renderCheckboxGroup('clientFilters', state.filterOptions.clients, 'client');
     renderCheckboxGroup('moduleFilters', state.filterOptions.modules, 'module');
   }
@@ -717,15 +720,15 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       cb.addEventListener('change', () => {
         updateCheckboxFilter(filterKey, cb.value, cb.checked);
         renderMarkers();
-      });
-    });
+  });
+});
   }
 
   function updateCheckboxFilter(key, value, checked) {
     // Map filter key names to state property names
     const keyMap = {
       'program': 'programs',
-      'siteType': 'siteTypes',
+      'projectType': 'projectTypes',
       'client': 'clients',
       'module': 'modules'
     };
@@ -765,7 +768,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       // Search - searches across multiple fields
       if (state.filters.search) {
         const s = state.filters.search.toLowerCase();
-        const searchable = [p.name, p.address, p.owner, p.siteType, p.clientType, p.module, p.inverter].join(' ').toLowerCase();
+        const searchable = [p.name, p.address, p.owner, p.projectType, p.clientType, p.module, p.inverter].join(' ').toLowerCase();
         if (!searchable.includes(s)) return false;
       }
       
@@ -778,8 +781,8 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
       // Program - supports comma-separated values
       if (!matchesCommaField(state.filters.programs, p.program)) return false;
       
-      // Site Type - supports comma-separated values
-      if (!matchesCommaField(state.filters.siteTypes, p.siteType)) return false;
+      // Project Type - supports comma-separated values
+      if (!matchesCommaField(state.filters.projectTypes, p.projectType)) return false;
       
       // Client - supports comma-separated values
       if (!matchesCommaField(state.filters.clients, p.clientType)) return false;
@@ -815,8 +818,8 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
             showProjectDetails(p);
           };
         }
-      });
-    });
+  });
+});
   }
 
   function createPopupHTML(p) {
@@ -832,7 +835,7 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
           </div>
         ` : ''}
         <div class="popup-body">
-          <div class="popup-name">${escapeHtml(p.address || p.name)}</div>
+          <div class="popup-name">${escapeHtml(shortenAddress(p.address) || p.name)}</div>
           <div class="popup-info">Owner: <span>${escapeHtml(p.owner) || 'N/A'}</span></div>
           <div class="popup-info">Capacity (DC): <span>${p.capacity.toLocaleString()} kW</span></div>
           <div class="popup-info">Completed: <span>${p.year}</span></div>
@@ -852,14 +855,15 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   // PROJECT DETAILS MODAL
   // ============================================
   function showProjectDetails(p) {
-    $('detailsTitle').textContent = p.name;
+    // Use shortened address as title (not project number which is internal only)
+    $('detailsTitle').textContent = shortenAddress(p.address) || p.name;
     
     const fields = [
-      { label: 'Address', value: p.address },
+      { label: 'Full address', value: p.address },
       { label: 'Owner', value: p.owner },
       { label: 'Capacity (DC)', value: p.capacity ? `${p.capacity.toLocaleString()} kW` : '' },
       { label: 'Completion', value: p.year },
-      { label: 'Site type', value: p.siteType },
+      { label: 'Project type', value: p.projectType },
       { label: 'Client type', value: p.clientType },
       { label: 'Power distribution program', value: p.program },
       { label: 'Module type', value: p.module },
@@ -901,12 +905,32 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
   window.currentImages = [];
   window.currentImageIndex = 0;
   
+  /**
+   * Optimizes Cloudinary URL for faster lightbox loading
+   * Reduces size to 1200px width and 70% quality (good balance of speed vs quality)
+   */
+  function optimizeLightboxUrl(url) {
+    if (!url) return url;
+    
+    // Check if it's a Cloudinary URL
+    if (url.includes('cloudinary.com') && url.includes('/upload/')) {
+      // Replace existing transformation or add new one
+      // Target: w_1200, q_70, f_auto (fast loading, good quality)
+      return url.replace(
+        /\/upload\/([^/]*)/,
+        '/upload/c_limit,w_1200,q_70,f_auto'
+      );
+    }
+    return url;
+  }
+  
   window.openLightbox = function(index) {
     window.currentImageIndex = index;
     const img = window.currentImages[index];
     if (!img) return;
     
-    $('lightboxImage').src = img.url;
+    // Use optimized URL for faster loading
+    $('lightboxImage').src = optimizeLightboxUrl(img.url);
     $('lightboxCaption').textContent = img.name;
     $('lightboxCounter').textContent = `${index + 1} / ${window.currentImages.length}`;
     $('lightbox').classList.add('open');
@@ -1045,18 +1069,18 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     state.filters = {
       search: '',
       capMin: 0,
-      capMax: 2000,
+      capMax: 4000,
       yearMin: 2010,
       yearMax: 2026,
       programs: [],
-      siteTypes: [],
+      projectTypes: [],
       clients: [],
       modules: []
     };
     
     $('searchInput').value = '';
     $('capMin').value = 0;
-    $('capMax').value = 2000;
+    $('capMax').value = 4000;
     $('yearMin').value = 2010;
     $('yearMax').value = 2026;
     
@@ -1104,6 +1128,17 @@ html, body { height: 100%; font-family: var(--font-family); background: var(--co
     const d = document.createElement('div');
     d.textContent = str;
     return d.innerHTML;
+  }
+
+  /**
+   * Shortens a full address to just the street portion
+   * e.g., "40 St George St, Toronto, ON M5S 2E4, Canada" → "40 St George St"
+   */
+  function shortenAddress(fullAddress) {
+    if (!fullAddress) return '';
+    // Take everything before the first comma
+    const shortened = fullAddress.split(',')[0].trim();
+    return shortened || fullAddress;
   }
 
   // ============================================
